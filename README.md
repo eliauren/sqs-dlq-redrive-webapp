@@ -1,5 +1,9 @@
 ## SQS DLQ Redrive Web App
 
+[![CI](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/ci.yml/badge.svg)](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp/branch/main/graph/badge.svg)](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp)
+[![Docker Image](https://ghcr-badge.egpl.dev/eliauren/sqs-dlq-redrive-webapp/latest_tag?trim=major&label=docker)](https://github.com/eliauren/sqs-dlq-redrive-webapp/pkgs/container/sqs-dlq-redrive-webapp)
+
 Web application to preview, filter, and redrive AWS SQS Dead Letter Queue messages to a target queue, using AWS SSO for authentication.
 
 ### Features
@@ -51,4 +55,12 @@ The `~/.aws` mount gives the container read-only access to your SSO profile defi
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3000` | HTTP server port |
+
+### Testing
+
+```bash
+npm test              # run tests once
+npm run test:watch    # run in watch mode
+npm run test:coverage # run with coverage report
+```
 

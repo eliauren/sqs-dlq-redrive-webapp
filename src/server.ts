@@ -245,8 +245,14 @@ app.post("/api/redrive", async (req, res) => {
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
-app.listen(port, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Server listening on port ${port}`);
-});
+// Export the app for testing
+export { app };
+
+// Only start listening when run directly (not imported for tests)
+if (process.env.NODE_ENV !== "test") {
+  app.listen(port, () => {
+    // eslint-disable-next-line no-console
+    console.log(`Server listening on port ${port}`);
+  });
+}
 

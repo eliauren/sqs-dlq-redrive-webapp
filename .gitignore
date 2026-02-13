@@ -22,5 +22,8 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Coverage
+coverage/
+
 # AWS credentials (never commit)
 .aws/
