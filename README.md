@@ -1,6 +1,7 @@
 ## SQS DLQ Redrive Web App
 
 [![CI](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/ci.yml/badge.svg)](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/codeql.yml/badge.svg)](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp/branch/main/graph/badge.svg)](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker)](https://github.com/eliauren/sqs-dlq-redrive-webapp/pkgs/container/sqs-dlq-redrive-webapp)
 
