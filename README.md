@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/ci.yml/badge.svg)](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp/branch/main/graph/badge.svg)](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp)
-[![Docker Image](https://ghcr-badge.egpl.dev/eliauren/sqs-dlq-redrive-webapp/latest_tag?trim=major&label=docker)](https://github.com/eliauren/sqs-dlq-redrive-webapp/pkgs/container/sqs-dlq-redrive-webapp)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker)](https://github.com/eliauren/sqs-dlq-redrive-webapp/pkgs/container/sqs-dlq-redrive-webapp)
 
 Web application to preview, filter, and redrive AWS SQS Dead Letter Queue messages to a target queue, using AWS SSO for authentication.
 
@@ -30,7 +30,17 @@ npm run dev
 
 Open `http://localhost:3000` in your browser, select your SSO profile, and click **Connect with SSO**.
 
-### Build and run with Docker
+### Run from GitHub Container Registry
+
+```bash
+docker pull ghcr.io/eliauren/sqs-dlq-redrive-webapp:latest
+
+docker run --rm -p 3000:3000 \
+  -v ~/.aws:/root/.aws:ro \
+  ghcr.io/eliauren/sqs-dlq-redrive-webapp:latest
+```
+
+### Build and run locally with Docker
 
 ```bash
 docker build -t sqs-dlq-redrive .
