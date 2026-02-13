@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SQS DLQ Redrive</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f3f4f6;
+        color: #111827;
+      }
+      header {
+        background: #111827;
+        color: white;
+        padding: 1rem 1.5rem;
+      }
+      main {
+        padding: 1.5rem;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      section {
+        background: white;
+        border-radius: 0.5rem;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+      h2 {
+        margin-top: 0;
+        font-size: 1rem;
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        margin-bottom: 0.25rem;
+      }
+      select,
+      input[type="text"],
+      input[type="number"] {
+        width: 100%;
+        padding: 0.4rem 0.5rem;
+        border-radius: 0.25rem;
+        border: 1px solid #d1d5db;
+        font-size: 0.9rem;
+        box-sizing: border-box;
+        margin-bottom: 0.75rem;
+      }
+      button {
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.9rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+      }
+      button:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+      button.danger {
+        background: #dc2626;
+      }
+      button.danger:disabled {
+        background: #9ca3af;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #e5e7eb;
+        padding: 0.4rem 0.5rem;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        background: #f9fafb;
+      }
+      .small {
+        font-size: 0.8rem;
+        color: #4b5563;
+      }
+      .status {
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+      }
+      .status.error {
+        color: #b91c1c;
+      }
+      .status.success {
+        color: #047857;
+      }
+      .flex {
+        display: flex;
+        gap: 1rem;
+      }
+      .flex > div {
+        flex: 1;
+      }
+      /* Message body modal */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .modal-content {
+        background: white;
+        border-radius: 0.5rem;
+        max-width: 80%;
+        max-height: 80vh;
+        width: 800px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+      }
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .modal-header h3 {
+        margin: 0;
+        font-size: 1rem;
+      }
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 0 0.25rem;
+      }
+      .modal-close:hover {
+        color: #111827;
+      }
+      .modal-body {
+        padding: 1.25rem;
+        overflow: auto;
+        flex: 1;
+      }
+      .modal-body pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        margin: 0;
+        font-size: 0.85rem;
+      }
+      #messagesTable tbody tr {
+        cursor: pointer;
+      }
+      #messagesTable tbody tr:hover {
+        background: #f3f4f6;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>SQS DLQ Redrive</h1>
+    </header>
+    <main>
+      <section>
+        <h2>1. AWS SSO Connection</h2>
+        <div>
+          <label for="ssoProfileSelect">SSO profile from ~/.aws/config</label>
+          <select id="ssoProfileSelect"></select>
+        </div>
+        <button id="ssoConnectBtn">Connect with SSO</button>
+        <div id="ssoStatus" class="status small"></div>
+      </section>
+
+      <section>
+        <h2>2. Environment &amp; Region</h2>
+        <div class="flex">
+          <div>
+            <label for="envSelect">Environment</label>
+            <select id="envSelect" disabled>
+              <option value="">Connect SSO first</option>
+            </select>
+          </div>
+          <div>
+            <label for="regionSelect">Region</label>
+            <select id="regionSelect"></select>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>3. Queue</h2>
+        <div>
+          <label for="dlqSelect">DLQ Queue</label>
+          <select id="dlqSelect" disabled>
+            <option value="">Load queues first</option>
+          </select>
+        </div>
+        <button id="loadQueuesBtn" disabled>Load queues</button>
+        <div id="queuesStatus" class="status"></div>
+      </section>
+
+      <section>
+        <h2>4. Filter &amp; Preview</h2>
+        <div class="flex">
+          <div>
+            <label for="attrPathInput">Attribute path (e.g. payload.orderId)</label>
+            <input id="attrPathInput" type="text" />
+          </div>
+          <div>
+            <label for="attrValueInput">Expected value</label>
+            <input id="attrValueInput" type="text" />
+          </div>
+          <div>
+            <label for="maxMessagesInput">Max messages to preview</label>
+            <input id="maxMessagesInput" type="number" value="1000" min="1" max="5000" />
+          </div>
+        </div>
+        <label class="small" style="margin-bottom: 0.5rem">
+          <input type="checkbox" id="excludeMatchingCheckbox" />
+          Exclude messages matching this value
+        </label>
+        <button id="previewBtn" disabled>Load messages from DLQ</button>
+        <div id="previewStatus" class="status"></div>
+        <div style="margin-top: 0.75rem; max-height: 300px; overflow: auto">
+          <table id="messagesTable">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="selectAllCheckbox" /></th>
+                <th>Message ID</th>
+                <th>Attribute value</th>
+                <th>Body (preview)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2>5. Redrive</h2>
+        <div style="margin-bottom: 0.75rem">
+          <label for="targetSelect">Target Queue</label>
+          <select id="targetSelect" disabled>
+            <option value="">Load queues first</option>
+          </select>
+        </div>
+        <label class="small">
+          <input type="checkbox" id="deleteAfterSendCheckbox" checked />
+          Delete from DLQ after successful send
+        </label>
+        <button id="redriveBtn" class="danger" disabled>Redrive selected messages</button>
+        <div id="redriveStatus" class="status"></div>
+      </section>
+    </main>
+
+    <!-- Message body modal -->
+    <div id="messageModal" class="modal-overlay" style="display: none">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modalTitle">Message Body</h3>
+          <button class="modal-close" id="modalCloseBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <pre id="modalMessageBody"></pre>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+  </html>
+
