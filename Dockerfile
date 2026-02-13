@@ -2,7 +2,7 @@ FROM node:25-alpine AS build
 
 WORKDIR /app
 
-COPY package.json tsconfig.json .npmrc ./
+COPY package.json tsconfig.json ./
 COPY src ./src
 COPY public ./public
 
@@ -15,7 +15,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY package.json .npmrc ./
+COPY package.json ./
 RUN npm install --omit=dev
 
 COPY --from=build /app/dist ./dist
