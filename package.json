@@ -22,13 +22,13 @@
     "ini": "^6.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
+    "@eslint/js": "^10.0.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/ini": "^4.1.1",
     "@types/supertest": "^6.0.3",
     "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^9.11.1",
+    "eslint": "^10.0.0",
     "supertest": "^7.2.2",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
