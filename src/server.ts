@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import path from "path";
 import { getEnvironment, registerDynamicEnvironments } from "./aws/envConfig";
@@ -43,8 +44,17 @@ app.get("/api/sso-profiles", (_req, res) => {
   }
 });
 
+// Rate limiter for SSO auth endpoints (prevent brute-force / abuse)
+const ssoRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // limit each IP to 20 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" },
+});
+
 // Start SSO device authorization flow for a given profile
-app.post("/api/sso/login/start", async (req, res) => {
+app.post("/api/sso/login/start", ssoRateLimiter, async (req, res) => {
   const { profileName } = req.body ?? {};
   if (!profileName) {
     res.status(400).json({ error: "profileName is required" });
@@ -62,7 +72,7 @@ app.post("/api/sso/login/start", async (req, res) => {
 });
 
 // Complete SSO login by exchanging device code for credentials
-app.post("/api/sso/login/poll", async (req, res) => {
+app.post("/api/sso/login/poll", ssoRateLimiter, async (req, res) => {
   const { profileName, deviceCode, sessionId } = req.body ?? {};
   if (!profileName || !deviceCode || !sessionId) {
     res.status(400).json({
