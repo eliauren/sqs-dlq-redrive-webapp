@@ -4,6 +4,7 @@
 [![CodeQL](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/codeql.yml/badge.svg)](https://github.com/eliauren/sqs-dlq-redrive-webapp/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp/branch/main/graph/badge.svg)](https://codecov.io/gh/eliauren/sqs-dlq-redrive-webapp)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue?logo=docker)](https://github.com/eliauren/sqs-dlq-redrive-webapp/pkgs/container/sqs-dlq-redrive-webapp)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025e8c?logo=dependabot)](https://github.com/eliauren/sqs-dlq-redrive-webapp/security/dependabot)
 
 Web application to preview, filter, and redrive AWS SQS Dead Letter Queue messages to a target queue, using AWS SSO for authentication.
 
