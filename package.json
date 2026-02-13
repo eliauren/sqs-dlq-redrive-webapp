@@ -16,7 +16,7 @@
     "@aws-sdk/client-sso": "^3.699.0",
     "@aws-sdk/client-sso-oidc": "^3.699.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.3.1",
     "express": "^4.21.2",
     "ini": "^4.1.3"
   },
