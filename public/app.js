@@ -40,6 +40,244 @@ const ssoStatus = document.getElementById("ssoStatus");
 let currentMessages = [];
 let currentSessionId = null;
 
+// ── Session Persistence ────────────────────────────────────────────────
+const SESSION_KEY = "sqs-redrive-session";
+const IDB_NAME = "sqs-redrive";
+const IDB_STORE = "keys";
+const IDB_KEY_ID = "session-encryption-key";
+
+// In-memory cache of the encryption key
+let encryptionKey = null;
+
+function openKeyStore() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      req.result.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getEncryptionKey() {
+  if (encryptionKey) return encryptionKey;
+
+  // Try to load existing key from IndexedDB
+  try {
+    const db = await openKeyStore();
+    const existing = await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readonly");
+      const req = tx.objectStore(IDB_STORE).get(IDB_KEY_ID);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    if (existing) {
+      encryptionKey = existing;
+      return encryptionKey;
+    }
+  } catch {
+    // IndexedDB unavailable — fall through to generate new key
+  }
+
+  // Generate a new key
+  encryptionKey = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    false, // not extractable
+    ["encrypt", "decrypt"]
+  );
+
+  // Persist to IndexedDB (survives refresh, cleared on tab close via clearSession)
+  try {
+    const db = await openKeyStore();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      const req = tx.objectStore(IDB_STORE).put(encryptionKey, IDB_KEY_ID);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    // Non-critical — key still works in memory for this page lifetime
+  }
+
+  return encryptionKey;
+}
+
+async function encryptData(plaintext) {
+  const key = await getEncryptionKey();
+  const encoder = new TextEncoder();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    encoder.encode(plaintext)
+  );
+  // Store IV + ciphertext as base64
+  const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(ciphertext), iv.length);
+  return btoa(String.fromCharCode(...combined));
+}
+
+async function decryptData(encoded) {
+  const key = await getEncryptionKey();
+  const combined = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+  const iv = combined.slice(0, 12);
+  const ciphertext = combined.slice(12);
+  const plaintext = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    key,
+    ciphertext
+  );
+  return new TextDecoder().decode(plaintext);
+}
+
+async function saveSession() {
+  try {
+    const state = {
+      currentSessionId,
+      ssoProfile: ssoProfileSelect?.value || null,
+      envId: envSelect.value || null,
+      region: regionSelect.value || null,
+      dlqUrl: dlqSelect.value || null,
+      targetUrl: targetSelect.value || null,
+      envOptions: Array.from(envSelect.options).map((o) => ({
+        value: o.value,
+        text: o.textContent,
+        regions: o.dataset.regions || "[]",
+      })),
+      regionOptions: Array.from(regionSelect.options).map((o) => ({
+        value: o.value,
+        text: o.textContent,
+      })),
+      queueOptions: Array.from(dlqSelect.options).map((o) => ({
+        value: o.value,
+        text: o.textContent,
+      })),
+      currentMessages,
+      timestamp: Date.now(),
+    };
+    const encrypted = await encryptData(JSON.stringify(state));
+    sessionStorage.setItem(SESSION_KEY, encrypted);
+  } catch {
+    // Ignore serialization/encryption errors
+  }
+}
+
+function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+  encryptionKey = null;
+  // Clean up IndexedDB key
+  openKeyStore()
+    .then((db) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).delete(IDB_KEY_ID);
+    })
+    .catch(() => {});
+}
+
+async function getSavedSession() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const decrypted = await decryptData(raw);
+    return JSON.parse(decrypted);
+  } catch {
+    // Decryption fails if key changed (new tab) — expected behavior
+    clearSession();
+    return null;
+  }
+}
+
+async function restoreSession() {
+  const saved = await getSavedSession();
+  if (!saved || !saved.currentSessionId) return false;
+
+  // Validate the backend session is still alive
+  try {
+    await fetchJson(
+      `/api/sso/environments?sessionId=${encodeURIComponent(saved.currentSessionId)}`
+    );
+  } catch {
+    clearSession();
+    return false;
+  }
+
+  // Restore state
+  currentSessionId = saved.currentSessionId;
+
+  // Restore SSO profile selection
+  if (saved.ssoProfile && ssoProfileSelect) {
+    ssoProfileSelect.value = saved.ssoProfile;
+  }
+
+  // Restore environment options and selection
+  if (saved.envOptions && saved.envOptions.length > 0) {
+    envSelect.innerHTML = "";
+    envSelect.disabled = false;
+    for (const o of saved.envOptions) {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.text;
+      opt.dataset.regions = o.regions;
+      envSelect.appendChild(opt);
+    }
+    if (saved.envId) envSelect.value = saved.envId;
+  }
+
+  // Restore region options and selection
+  if (saved.regionOptions && saved.regionOptions.length > 0) {
+    regionSelect.innerHTML = "";
+    for (const o of saved.regionOptions) {
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.text;
+      regionSelect.appendChild(opt);
+    }
+    if (saved.region) regionSelect.value = saved.region;
+  }
+
+  // Restore queue options and selection
+  if (saved.queueOptions && saved.queueOptions.length > 0) {
+    dlqSelect.innerHTML = "";
+    dlqSelect.disabled = false;
+    targetSelect.innerHTML = "";
+    targetSelect.disabled = false;
+    for (const o of saved.queueOptions) {
+      const opt1 = document.createElement("option");
+      opt1.value = o.value;
+      opt1.textContent = o.text;
+      dlqSelect.appendChild(opt1);
+
+      const opt2 = document.createElement("option");
+      opt2.value = o.value;
+      opt2.textContent = o.text;
+      targetSelect.appendChild(opt2);
+    }
+    if (saved.dlqUrl) dlqSelect.value = saved.dlqUrl;
+    if (saved.targetUrl) targetSelect.value = saved.targetUrl;
+  }
+
+  // Restore messages
+  if (saved.currentMessages && saved.currentMessages.length > 0) {
+    currentMessages = saved.currentMessages;
+    renderMessagesTable();
+    previewStatus.textContent = `Restored ${currentMessages.length} messages from previous session.`;
+    previewStatus.className = "status success";
+  }
+
+  // Re-enable buttons
+  loadQueuesBtn.disabled = false;
+  previewBtn.disabled = false;
+  if (saved.queueOptions && saved.queueOptions.length > 0) {
+    redriveBtn.disabled = false;
+  }
+
+  ssoStatus.textContent = "Session restored from previous connection.";
+  ssoStatus.className = "status success";
+  return true;
+}
+
 function generateSessionId() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
@@ -156,7 +394,8 @@ if (ssoConnectBtn && ssoProfileSelect && ssoStatus) {
         ssoStatus.className = "status success";
         // Enable downstream controls
         loadQueuesBtn.disabled = false;
-        previewBtn.disabled = false;      } catch (envErr) {
+        previewBtn.disabled = false;
+        await saveSession();      } catch (envErr) {
         ssoStatus.textContent = "SSO connected but failed to discover environments: " + envErr.message;
         ssoStatus.className = "status error";
       }
@@ -164,6 +403,7 @@ if (ssoConnectBtn && ssoProfileSelect && ssoStatus) {
       ssoStatus.textContent = "SSO login failed: " + err.message;
       ssoStatus.className = "status error";
       currentSessionId = null;
+      clearSession();
     }
   });
 }
@@ -181,8 +421,9 @@ function updateRegions() {
   }
 }
 
-envSelect.addEventListener("change", () => {
+envSelect.addEventListener("change", async () => {
   updateRegions();
+  await saveSession();
 });
 
 loadQueuesBtn.addEventListener("click", async () => {
@@ -224,6 +465,7 @@ loadQueuesBtn.addEventListener("click", async () => {
 
     // Enable redrive button now that queues are loaded
     redriveBtn.disabled = false;
+    await saveSession();
   } catch (err) {
     queuesStatus.textContent = "Failed to load queues: " + err.message;
     queuesStatus.className = "status error";
@@ -273,6 +515,7 @@ previewBtn.addEventListener("click", async () => {
 
     currentMessages = data.messages || [];
     renderMessagesTable();
+    await saveSession();
   } catch (err) {
     previewStatus.textContent = "Failed to preview messages: " + err.message;
     previewStatus.className = "status error";
@@ -410,5 +653,10 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Initial load
-loadSsoProfiles();
+async function init() {
+  await loadSsoProfiles();
+  await restoreSession();
+}
+
+init();
 
